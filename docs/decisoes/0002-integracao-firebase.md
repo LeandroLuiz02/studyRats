@@ -115,11 +115,18 @@ de ambiente (`VITE_FIREBASE_*`) e não são commitadas diretamente:
    - [x] `src/lib/firebase.ts` (inicialização de app/auth/Firestore a partir das
      variáveis `VITE_FIREBASE_*`), `.env.example`/`.env.local`.
    - [x] Tela de login com Google Sign-In + `AuthContext` (cria `users/{uid}` no primeiro login).
-   - [ ] Migração do `AppContext` de dados fake para Firestore em tempo real
-     (`onSnapshot`) em `users`/`groups`/`sessions`.
-   - [ ] `ProfileModal` passa a persistir só o campo "Sobre" no Firestore; upload de
-     foto fica desativado (ver Decisão 2 revisada).
-   - [ ] `firestore.rules` publicadas conforme Decisão 4.
+   - [x] Perfil do usuário logado (`users/{uid}`) migrado para o Firestore
+     (leitura em tempo real via `onSnapshot` + escrita otimista). `groups` e
+     `sessions` continuam em memória por enquanto — ver próximo item.
+   - [ ] Migração de `groups`/`sessions` de dados fake para Firestore em tempo
+     real (`onSnapshot`).
+   - [x] `ProfileModal` persiste só o campo "Sobre" no Firestore; upload de
+     foto foi removido da UI (ver Decisão 2 revisada).
+   - [x] `firestore.rules` escritas conforme Decisão 4 (arquivo `firestore.rules`
+     na raiz do projeto). Priorizadas antes da migração de grupos/sessões por
+     motivo de segurança: o banco estava em "modo de teste" desde a criação,
+     aberto para leitura/escrita por qualquer pessoa (autenticada ou não) por
+     30 dias. Falta você publicá-las no Console (passo manual, abaixo).
    - [ ] Segredos configurados no GitHub Actions (`deploy.yml`).
 4. Testes de integração contra o Firestore usando o Firebase Local Emulator Suite
    (gratuito, sem depender de credenciais reais em CI) — como já previsto no ADR 0001.

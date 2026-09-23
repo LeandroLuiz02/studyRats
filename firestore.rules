@@ -1,0 +1,49 @@
+rules_version = '2';
+
+// Regras de segurança do Firestore para o StudyRats.
+// Documentadas e justificadas em docs/decisoes/0002-integracao-firebase.md (Decisão 4).
+// Simplificação deliberada para um grupo pequeno (~5-10 pessoas conhecidas):
+// não há grupos "privados" nem papéis de admin. Se o app crescer, revisar.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // users/{uid}: qualquer pessoa autenticada pode ler qualquer perfil
+    // (nome/foto/bio aparecem no feed e no ranking pros colegas). Só o dono
+    // pode escrever no próprio documento.
+    match /users/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // groups/{groupId}: qualquer pessoa autenticada pode ler todos os grupos
+    // (necessário pra listar "grupos disponíveis para entrar") e criar grupos
+    // novos, desde que se inclua como único membro inicial. "Entrar" em um
+    // grupo é uma atualização que só pode adicionar o próprio uid a
+    // memberIds — nenhum outro campo pode mudar nessa operação.
+    match /groups/{groupId} {
+      allow read: if request.auth != null;
+
+      allow create: if request.auth != null
+        && request.resource.data.memberIds == [request.auth.uid];
+
+      allow update: if request.auth != null
+        && !(request.auth.uid in resource.data.memberIds)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds'])
+        && request.resource.data.memberIds == resource.data.memberIds.concat([request.auth.uid]);
+    }
+
+    // sessions/{sessionId}: qualquer pessoa autenticada pode ler todas as
+    // sessões (necessário pro feed e ranking). Só o autor pode criar, editar
+    // ou apagar as próprias sessões, e o campo userId precisa bater com quem
+    // está autenticado.
+    match /sessions/{sessionId} {
+      allow read: if request.auth != null;
+
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid;
+
+      allow update, delete: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+    }
+  }
+}

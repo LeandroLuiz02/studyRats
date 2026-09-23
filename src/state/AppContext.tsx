@@ -1,6 +1,17 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
-import { CURRENT_USER_ID, initialGroups, initialSessions, users as initialUsers } from '../data/mockData'
+import { doc, onSnapshot, setDoc } from 'firebase/firestore'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
+import { CURRENT_USER_ID, initialGroups, initialSessions, users as mockUsers } from '../data/mockData'
+import { db } from '../lib/firebase'
 import type { Group, StudySession, User } from '../types'
+import { useAuth } from './AuthContext'
 
 interface PublishSessionInput {
   title: string
@@ -12,6 +23,15 @@ interface PublishSessionInput {
 interface UpdateProfileInput {
   bio?: string
   avatarUrl?: string
+}
+
+/** Formato do documento users/{uid} no Firestore (ver docs/decisoes/0002-integracao-firebase.md). */
+interface FirestoreProfile {
+  name: string
+  initials: string
+  avatarClass: string
+  avatarUrl?: string
+  bio?: string
 }
 
 interface AppContextValue {
@@ -34,12 +54,63 @@ const AppContext = createContext<AppContextValue | null>(null)
 let nextGroupId = 1000
 let nextSessionId = 1000
 
+/** Perfil de fallback (dados do mock) usado até o Firestore responder pela primeira vez. */
+function fallbackProfile(): FirestoreProfile {
+  const mock = mockUsers.find((u) => u.id === CURRENT_USER_ID)!
+  return {
+    name: mock.name,
+    initials: mock.initials,
+    avatarClass: mock.avatarClass,
+    avatarUrl: mock.avatarUrl,
+    bio: mock.bio,
+  }
+}
+
+/**
+ * AppProvider é normalmente montado só depois do portão de autenticação (ver
+ * App.tsx), mas o próprio AuthContext resolve o usuário de forma assíncrona —
+ * então, por uma fração de segundo (ou em testes que montam AppProvider sem
+ * esperar o AuthContext assentar), firebaseUser ainda pode ser null. Nesse caso
+ * não renderizamos nada, em vez de quebrar: os dados do app não fazem sentido
+ * sem um usuário autenticado mesmo.
+ */
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [users, setUsers] = useState<User[]>(initialUsers)
+  const { firebaseUser } = useAuth()
+  if (!firebaseUser) return null
+  return <AuthenticatedAppProvider firebaseUser={firebaseUser}>{children}</AuthenticatedAppProvider>
+}
+
+function AuthenticatedAppProvider({
+  firebaseUser,
+  children,
+}: {
+  firebaseUser: NonNullable<ReturnType<typeof useAuth>['firebaseUser']>
+  children: ReactNode
+}) {
+  const uid = firebaseUser.uid
+
+  // Grupos e sessões ainda são dados fake em memória (migração planejada para os
+  // próximos passos — ver checklist na ADR 0002). Só o perfil do usuário logado já
+  // é real, vindo do Firestore.
   const [groups, setGroups] = useState<Group[]>(initialGroups)
   const [sessions, setSessions] = useState<StudySession[]>(initialSessions)
+  const [profile, setProfile] = useState<FirestoreProfile | null>(null)
 
-  const currentUser = users.find((u) => u.id === CURRENT_USER_ID) ?? users[0]
+  useEffect(() => {
+    const ref = doc(db, 'users', uid)
+    const unsubscribe = onSnapshot(ref, (snap) => {
+      const data = snap.data() as FirestoreProfile | undefined
+      if (data) setProfile(data)
+    })
+    return unsubscribe
+  }, [uid])
+
+  const users: User[] = useMemo(() => {
+    const me: User = { id: uid, ...(profile ?? fallbackProfile()) }
+    return mockUsers.map((u) => (u.id === CURRENT_USER_ID ? me : u))
+  }, [profile, uid])
+
+  const currentUser = users.find((u) => u.id === uid) ?? users[0]
 
   const myGroups = useMemo(
     () => groups.filter((g) => g.memberIds.includes(currentUser.id)),
@@ -108,11 +179,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateProfile = useCallback(
     (input: UpdateProfileInput) => {
-      setUsers((prev) =>
-        prev.map((u) => (u.id === currentUser.id ? { ...u, ...input } : u)),
-      )
+      // Atualização otimista: a UI reflete a mudança na hora, sem esperar o
+      // round-trip do Firestore. O onSnapshot acima mantém tudo sincronizado
+      // depois (inclusive se o mesmo perfil for editado em outra aba/dispositivo).
+      setProfile((prev) => ({ ...(prev ?? fallbackProfile()), ...input }))
+
+      const ref = doc(db, 'users', uid)
+      void setDoc(ref, input, { merge: true })
     },
-    [currentUser.id],
+    [uid],
   )
 
   const findUser = useCallback((userId: string) => users.find((u) => u.id === userId), [users])

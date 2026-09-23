@@ -1,64 +1,28 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useApp } from '../state/AppContext'
 import { Avatar } from './Avatar'
 import { Modal } from './Modal'
 
 export function ProfileModal({ onClose }: { onClose: () => void }) {
   const { currentUser, updateProfile } = useApp()
-  const [avatarUrl, setAvatarUrl] = useState(currentUser.avatarUrl)
   const [bio, setBio] = useState(currentUser.bio ?? '')
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      if (typeof reader.result === 'string') setAvatarUrl(reader.result)
-    }
-    reader.readAsDataURL(file)
-  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    updateProfile({ avatarUrl, bio: bio.trim() })
+    updateProfile({ bio: bio.trim() })
     onClose()
   }
-
-  const previewUser = { ...currentUser, avatarUrl }
 
   return (
     <Modal title="Editar perfil" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="flex items-center gap-4">
-          <Avatar user={previewUser} size="lg" />
+          <Avatar user={currentUser} size="lg" />
           <div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
-              >
-                Alterar foto
-              </button>
-              {avatarUrl && (
-                <button
-                  type="button"
-                  onClick={() => setAvatarUrl(undefined)}
-                  className="text-sm text-slate-400 hover:text-rose-600"
-                >
-                  Remover
-                </button>
-              )}
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-            <p className="mt-1 text-xs text-slate-400">JPG ou PNG. Fica salva só neste dispositivo por enquanto.</p>
+            <p className="font-medium text-slate-900 dark:text-slate-100">{currentUser.name}</p>
+            <p className="text-xs text-slate-400">
+              Foto de perfil temporariamente indisponível (ver docs/decisoes/0002).
+            </p>
           </div>
         </div>
 

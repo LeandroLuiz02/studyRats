@@ -1,13 +1,14 @@
 import '@testing-library/jest-dom/vitest'
 import { vi } from 'vitest'
+import { CURRENT_USER_ID, users as mockUsers } from './data/mockData'
 import { mockFirebaseUser } from './test/mockFirebaseUser'
 
 /**
  * O SDK do Firebase é mockado globalmente para todos os testes unitários/de
  * integração de componentes: eles não devem depender de rede real nem de
- * popups de login. Por padrão, simula um usuário já autenticado (mockFirebaseUser),
- * para que os testes existentes (que não são sobre autenticação) continuem
- * funcionando sem precisar passar pela tela de login.
+ * popups de login. Por padrão, simula um usuário já autenticado
+ * (mockFirebaseUser) cujo perfil no Firestore espelha o antigo usuário mock
+ * 'u1' (para os testes existentes continuarem funcionando sem reescrever).
  *
  * Testes que precisam simular outro estado (deslogado, primeiro login, etc.)
  * importam as funções mockadas de 'firebase/auth'/'firebase/firestore' e usam
@@ -33,10 +34,25 @@ vi.mock('firebase/auth', () => ({
   signOut: vi.fn(() => Promise.resolve()),
 }))
 
+const mockUserProfile = mockUsers.find((u) => u.id === CURRENT_USER_ID)!
+
 vi.mock('firebase/firestore', () => ({
   getFirestore: vi.fn(() => ({})),
   doc: vi.fn(() => ({})),
   getDoc: vi.fn(() => Promise.resolve({ exists: () => true, data: () => ({}) })),
   setDoc: vi.fn(() => Promise.resolve()),
+  onSnapshot: vi.fn((_ref: unknown, callback: (snap: unknown) => void) => {
+    callback({
+      exists: () => true,
+      data: () => ({
+        name: mockUserProfile.name,
+        initials: mockUserProfile.initials,
+        avatarClass: mockUserProfile.avatarClass,
+        avatarUrl: mockUserProfile.avatarUrl,
+        bio: mockUserProfile.bio,
+      }),
+    })
+    return () => {}
+  }),
   serverTimestamp: vi.fn(() => null),
 }))
