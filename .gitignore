@@ -29,3 +29,8 @@ coverage
 *.njsproj
 *.sln
 *.sw?
+
+# Variáveis de ambiente (segredos locais do Firebase etc.)
+.env
+.env.local
+.env.*.local
