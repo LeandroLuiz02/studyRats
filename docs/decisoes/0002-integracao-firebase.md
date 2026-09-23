@@ -118,8 +118,10 @@ de ambiente (`VITE_FIREBASE_*`) e não são commitadas diretamente:
    - [x] Perfil do usuário logado (`users/{uid}`) migrado para o Firestore
      (leitura em tempo real via `onSnapshot` + escrita otimista). `groups` e
      `sessions` continuam em memória por enquanto — ver próximo item.
-   - [ ] Migração de `groups`/`sessions` de dados fake para Firestore em tempo
-     real (`onSnapshot`).
+   - [x] Migração de `groups` para o Firestore em tempo real (`onSnapshot` na
+     coleção `groups`; `createGroup`/`joinGroup`/`joinGroupByCode` escrevem de
+     verdade, com atualização otimista local).
+   - [ ] Migração de `sessions` para o Firestore em tempo real.
    - [x] `ProfileModal` persiste só o campo "Sobre" no Firestore; upload de
      foto foi removido da UI (ver Decisão 2 revisada).
    - [x] `firestore.rules` escritas conforme Decisão 4 (arquivo `firestore.rules`

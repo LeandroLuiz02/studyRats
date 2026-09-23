@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useEffect } from 'react'
+import { useState } from 'react'
 import { describe, expect, it } from 'vitest'
 import { AppProvider, useApp } from '../../state/AppContext'
 import { AuthProvider } from '../../state/AuthContext'
@@ -17,14 +17,32 @@ function renderModal(preselectedGroupId?: string) {
   )
 }
 
-/** Entra no grupo informado antes de montar o modal (preselectedGroupId só faz
- * sentido pra grupos dos quais o usuário atual já é membro — assim como no app
- * de verdade, onde essa tela só é aberta a partir de dentro de um grupo). */
+/**
+ * Entra no grupo informado por meio de um clique real (não num efeito de
+ * montagem) antes de mostrar o modal: preselectedGroupId só faz sentido pra
+ * grupos dos quais o usuário atual já é membro — assim como no app de
+ * verdade, onde essa tela só é aberta a partir de dentro de um grupo. Esperar
+ * um clique real também garante que os grupos (carregados de forma
+ * assíncrona do Firestore) já chegaram antes de tentarmos entrar num deles.
+ */
 function JoinGroupThenPublish({ groupId }: { groupId: string }) {
   const { joinGroup } = useApp()
-  useEffect(() => {
-    joinGroup(groupId)
-  }, [groupId, joinGroup])
+  const [joined, setJoined] = useState(false)
+
+  if (!joined) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          joinGroup(groupId)
+          setJoined(true)
+        }}
+      >
+        entrar no grupo de teste
+      </button>
+    )
+  }
+
   return <PublishSessionModal onClose={() => {}} preselectedGroupId={groupId} />
 }
 
@@ -42,6 +60,7 @@ describe('PublishSessionModal', () => {
   })
 
   it('pré-seleciona o grupo informado por preselectedGroupId', async () => {
+    const user = userEvent.setup()
     render(
       <AuthProvider>
         <AppProvider>
@@ -49,6 +68,8 @@ describe('PublishSessionModal', () => {
         </AppProvider>
       </AuthProvider>,
     )
+
+    await user.click(await screen.findByText('entrar no grupo de teste'))
 
     const checkbox = (await screen.findByLabelText('Concurso TRT 2027')) as HTMLInputElement
     expect(checkbox.checked).toBe(true)

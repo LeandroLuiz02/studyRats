@@ -1,4 +1,13 @@
-import { doc, onSnapshot, setDoc } from 'firebase/firestore'
+import {
+  arrayUnion,
+  collection,
+  doc,
+  onSnapshot,
+  setDoc,
+  updateDoc,
+  type DocumentData,
+  type QueryDocumentSnapshot,
+} from 'firebase/firestore'
 import {
   createContext,
   useCallback,
@@ -8,7 +17,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { CURRENT_USER_ID, initialGroups, initialSessions, users as mockUsers } from '../data/mockData'
+import { CURRENT_USER_ID, initialSessions, users as mockUsers } from '../data/mockData'
 import { db } from '../lib/firebase'
 import type { Group, StudySession, User } from '../types'
 import { useAuth } from './AuthContext'
@@ -51,7 +60,6 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | null>(null)
 
-let nextGroupId = 1000
 let nextSessionId = 1000
 
 /** Perfil de fallback (dados do mock) usado até o Firestore responder pela primeira vez. */
@@ -63,6 +71,17 @@ function fallbackProfile(): FirestoreProfile {
     avatarClass: mock.avatarClass,
     avatarUrl: mock.avatarUrl,
     bio: mock.bio,
+  }
+}
+
+function groupFromDoc(docSnap: QueryDocumentSnapshot<DocumentData>): Group {
+  const data = docSnap.data()
+  return {
+    id: docSnap.id,
+    name: data.name,
+    description: data.description,
+    inviteCode: data.inviteCode,
+    memberIds: data.memberIds ?? [],
   }
 }
 
@@ -89,21 +108,27 @@ function AuthenticatedAppProvider({
 }) {
   const uid = firebaseUser.uid
 
-  // Grupos e sessões ainda são dados fake em memória (migração planejada para os
-  // próximos passos — ver checklist na ADR 0002). Só o perfil do usuário logado já
-  // é real, vindo do Firestore.
-  const [groups, setGroups] = useState<Group[]>(initialGroups)
+  // Sessões ainda são dados fake em memória (migração planejada para o próximo
+  // passo — ver checklist na ADR 0002). Perfil e grupos já são reais, vindos do
+  // Firestore.
+  const [groups, setGroups] = useState<Group[]>([])
   const [sessions, setSessions] = useState<StudySession[]>(initialSessions)
   const [profile, setProfile] = useState<FirestoreProfile | null>(null)
 
   useEffect(() => {
     const ref = doc(db, 'users', uid)
-    const unsubscribe = onSnapshot(ref, (snap) => {
+    return onSnapshot(ref, (snap) => {
       const data = snap.data() as FirestoreProfile | undefined
       if (data) setProfile(data)
     })
-    return unsubscribe
   }, [uid])
+
+  useEffect(() => {
+    const ref = collection(db, 'groups')
+    return onSnapshot(ref, (snap) => {
+      setGroups(snap.docs.map(groupFromDoc))
+    })
+  }, [])
 
   const users: User[] = useMemo(() => {
     const me: User = { id: uid, ...(profile ?? fallbackProfile()) }
@@ -124,14 +149,25 @@ function AuthenticatedAppProvider({
 
   const createGroup = useCallback(
     (name: string, description: string) => {
+      // Gera a referência (e o id) localmente, sem round-trip: permite navegar
+      // pro grupo recém-criado na hora. A escrita em si acontece em segundo
+      // plano; o onSnapshot acima confirma pra todo mundo (inclusive outras
+      // abas/dispositivos) assim que o Firestore responder.
+      const ref = doc(collection(db, 'groups'))
       const group: Group = {
-        id: `g${nextGroupId++}`,
+        id: ref.id,
         name,
         description,
         inviteCode: Math.random().toString(36).slice(2, 8).toUpperCase(),
         memberIds: [currentUser.id],
       }
       setGroups((prev) => [...prev, group])
+      void setDoc(ref, {
+        name: group.name,
+        description: group.description,
+        inviteCode: group.inviteCode,
+        memberIds: group.memberIds,
+      })
       return group
     },
     [currentUser.id],
@@ -146,6 +182,9 @@ function AuthenticatedAppProvider({
             : g,
         ),
       )
+
+      const ref = doc(db, 'groups', groupId)
+      void updateDoc(ref, { memberIds: arrayUnion(currentUser.id) })
     },
     [currentUser.id],
   )
