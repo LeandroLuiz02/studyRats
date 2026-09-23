@@ -75,12 +75,9 @@ docs/decisoes/    # registro (ADRs) das decisões de arquitetura, em Markdown
   deploy.yml      # builda e publica no GitHub Pages a cada push em main
 ```
 
-## Próximos passos sugeridos
+## Próximos passos
 
 1. Integrar Firebase (Firestore + Authentication) no lugar dos dados fake.
 2. Persistir sessões/grupos de verdade e sincronizar entre usuários.
 3. Tela de login/perfil.
 4. Testes de integração contra o Firestore usando o Firebase Local Emulator Suite.
-
-Cada passo será proposto como uma mudança pequena e isolada, para que você revise e
-controle os commits.

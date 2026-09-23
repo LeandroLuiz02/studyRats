@@ -9,7 +9,7 @@ describe('fluxo completo: criar grupo, publicar sessão e ver no feed', () => {
     render(<App />)
 
     // Cria um novo grupo a partir da Home.
-    await user.click(screen.getByRole('button', { name: '+ Criar grupo' }))
+    await user.click(await screen.findByRole('button', { name: '+ Criar grupo' }))
     await user.type(screen.getByLabelText('Nome do grupo'), 'Grupo de Teste')
     await user.click(screen.getByRole('button', { name: 'Criar grupo' }))
 
@@ -34,7 +34,7 @@ describe('fluxo completo: criar grupo, publicar sessão e ver no feed', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(screen.getByRole('button', { name: '+ Criar grupo' }))
+    await user.click(await screen.findByRole('button', { name: '+ Criar grupo' }))
     await user.type(screen.getByLabelText('Nome do grupo'), 'Grupo Ranking')
     await user.click(screen.getByRole('button', { name: 'Criar grupo' }))
     await screen.findByRole('heading', { name: 'Grupo Ranking' })
